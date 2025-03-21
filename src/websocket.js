@@ -1,23 +1,25 @@
 const WebSocket = require('ws');
 
-function initWebSocket(server, db) {
+async function initWebSocket(server, db) {
   const wss = new WebSocket.Server({ server });
   
   // Store connected clients
   const clients = new Set();
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', async (ws) => {
     clients.add(ws);
     let username = null;
 
     // Send last 50 messages to new connection
-    const messages = db.prepare('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 50').all();
+    console.log('Fetching message history from database');
+    const messages = await db.all('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 50');
+    console.log('Fetched', messages.length, 'messages');
     ws.send(JSON.stringify({
       type: 'history',
       messages: messages.reverse()
     }));
 
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       try {
         const message = JSON.parse(data);
         
@@ -27,8 +29,7 @@ function initWebSocket(server, db) {
             if (!username) return;
             
             // Store or update user in database
-            db.prepare('INSERT OR REPLACE INTO users (username, last_seen) VALUES (?, CURRENT_TIMESTAMP)')
-              .run(username);
+            await db.run('INSERT OR REPLACE INTO users (username, last_seen) VALUES (?, CURRENT_TIMESTAMP)', username);
             
             // Broadcast join message
             broadcastMessage({
@@ -42,8 +43,7 @@ function initWebSocket(server, db) {
             if (!username || !message.content.trim()) return;
             
             // Store message in database
-            const stmt = db.prepare('INSERT INTO messages (username, content) VALUES (?, ?)');
-            const result = stmt.run(username, message.content);
+            const result = await db.run('INSERT INTO messages (username, content) VALUES (?, ?)', username, message.content);
             
             // Broadcast message to all clients
             broadcastMessage({
@@ -60,11 +60,10 @@ function initWebSocket(server, db) {
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', async () => {
       if (username) {
         // Update last seen timestamp
-        db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE username = ?')
-          .run(username);
+        await db.run('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE username = ?', username);
         
         // Broadcast leave message
         broadcastMessage({

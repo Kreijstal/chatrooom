@@ -4,13 +4,13 @@ const path = require('path');
 const { initWebSocket } = require('./websocket');
 const { initDatabase } = require('./db');
 
-function startServer(dbPath, port) {
+async function startServer(dbPath, port) {
   // Initialize Express app
   const app = express();
   const server = http.createServer(app);
 
   // Initialize database
-  const db = initDatabase(path.join(dbPath, 'chatroom.db'));
+  const db = await initDatabase(path.join(dbPath, 'chatroom.db'));
   
   // Initialize WebSocket server
   initWebSocket(server, db);
@@ -20,7 +20,10 @@ function startServer(dbPath, port) {
   app.use(express.static(publicPath));
 
   // Start the server
-  server.listen(port);
+  console.log('Starting server on port', port);
+  server.listen(port, () => {
+    console.log('Server started successfully');
+  });
   
   return server;
 }

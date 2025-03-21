@@ -1,8 +1,9 @@
-const BetterSqlite3 = require('better-sqlite3');
+const sqlite3 = require('sqlite3');
+const { open } = require('sqlite');
 const fs = require('fs');
 const path = require('path');
 
-function initDatabase(dbPath) {
+async function initDatabase(dbPath) {
   // Ensure directory exists
   const dbDir = path.dirname(dbPath);
   if (!fs.existsSync(dbDir)) {
@@ -10,10 +11,15 @@ function initDatabase(dbPath) {
   }
 
   // Initialize SQLite database
-  const db = new BetterSqlite3(dbPath);
+  console.log('Initializing database at:', dbPath);
+  const db = await open({
+    filename: dbPath,
+    driver: sqlite3.Database
+  });
+  console.log('Database initialized successfully');
 
   // Create tables if they don't exist
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL,
