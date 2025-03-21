@@ -21,7 +21,7 @@ async function startServer(dbPath, port) {
 
   // Start the server
   console.log('Starting server on port', port);
-  server.listen(port, () => {
+  server.listen(port, '0.0.0.0', () => {
     console.log('Server started successfully');
   });
   
