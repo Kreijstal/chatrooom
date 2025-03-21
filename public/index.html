@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Chatroom</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="chat-container">
+    <header>
+      <h1>Simple Chatroom</h1>
+      <div class="user-info">
+        <span id="connection-status">Disconnected</span>
+      </div>
+    </header>
+    
+    <div id="messages-container" class="messages-container"></div>
+    
+    <div id="login-form" class="form-container">
+      <input type="text" id="username-input" placeholder="Enter your username" maxlength="20">
+      <button id="join-button">Join Chat</button>
+    </div>
+    
+    <div id="message-form" class="form-container hidden">
+      <input type="text" id="message-input" placeholder="Type a message...">
+      <button id="send-button">Send</button>
+    </div>
+  </div>
+  
+  <script src="client.js"></script>
+</body>
+</html>
