@@ -11,18 +11,38 @@ document.addEventListener('DOMContentLoaded', () => {
   let socket;
   let username = '';
   let oldestMessageId = null;
+  let newestMessageId = null;
+  let minMessageNumber = null;
+  let maxMessageNumber = null;
   let isLoadingHistory = false;
   let hasMoreHistory = true;
   let scrollPositionBeforeLoad = 0;
 
   // Connect to WebSocket server
-  function connectWebSocket() {
+  function connectWebSocket(isReconnect = false) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    socket = new WebSocket(`${protocol}//${window.location.host}`);
+    socket = new WebSocket(`${protocol}//${window.location.host}/${window.location.hash.substring(1)}`);
     
     socket.onopen = () => {
       connectionStatus.textContent = 'Connected';
       connectionStatus.classList.add('connected');
+      
+      if (isReconnect) {
+        // Clear existing messages and state
+        messagesContainer.innerHTML = '';
+        oldestMessageId = null;
+        newestMessageId = null;
+        minMessageNumber = null;
+        maxMessageNumber = null;
+        
+        // If we have a username, send join message
+        if (username) {
+          socket.send(JSON.stringify({
+            type: 'join',
+            username
+          }));
+        }
+      }
     };
     
     socket.onclose = () => {
@@ -30,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
       connectionStatus.classList.remove('connected');
       
       // Try to reconnect after a delay
-      setTimeout(connectWebSocket, 3000);
+      setTimeout(() => connectWebSocket(true), 3000);
     };
     
     socket.onerror = (error) => {
@@ -38,21 +58,43 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     socket.onmessage = (event) => {
+  //console.log(`min: ${minMessageNumber} max:${maxMessageNumber}`)
       try {
         const data = JSON.parse(event.data);
         
         switch(data.type) {
+          //Keep track of msg.message_number min and max value, min is the oldest, max is the newest, if a message is between min or max we already have it so dont add it!
           case 'history':
             // Clear existing messages first
             if (messagesContainer.children.length === 0) { // Initial load
               messagesContainer.innerHTML = '';
-              data.messages.forEach(msg => addMessageToUI(msg));
+              data.messages.forEach(msg => {
+                if ((minMessageNumber && msg.message_number >= minMessageNumber) &&
+                    (maxMessageNumber && msg.message_number <= maxMessageNumber)) {
+                  console.log('Rejected duplicate history message:', msg);
+                  return;
+                }
+                addMessageToUI(msg);
+                if (minMessageNumber === null || msg.message_number < minMessageNumber) {
+                  minMessageNumber = msg.message_number;
+                }
+                if (maxMessageNumber === null || msg.message_number > maxMessageNumber) {
+                  maxMessageNumber = msg.message_number;
+                }
+              });
               oldestMessageId = data.firstId;
-            } else { // Paginated load
+            } else { // Paginated load OR we lost connection.. and server sends its first history 
+            //What happens if there has been more than 50 messages from disconnection to reconnection????
               scrollPositionBeforeLoad = messagesContainer.scrollHeight - messagesContainer.scrollTop;
               // Create temporary container for new messages
               const tempContainer = document.createElement('div');
               data.messages.forEach(msg => {
+                if (minMessageNumber !== null && maxMessageNumber !== null &&
+                    msg.message_number >= minMessageNumber &&
+                    msg.message_number <= maxMessageNumber) {
+                  //console.log('Rejected duplicate paginated message:', msg);
+                  return;
+                }
                 const element = createMessageElement(msg);
                 tempContainer.appendChild(element);
               });
@@ -72,9 +114,29 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
             
           case 'message':
-          case 'system':
-            addMessageToUI(data);
+          case 'system': {
+            if (!newestMessageId || data.id > newestMessageId) {
+              if (minMessageNumber && maxMessageNumber &&
+                  data.message_number >= minMessageNumber &&
+                  data.message_number <= maxMessageNumber) {
+                console.log('Rejected duplicate message:', {
+                  reason: 'Duplicate',
+                  message: data,
+                  range: {min: minMessageNumber, max: maxMessageNumber}
+                });
+              } else {
+                addMessageToUI(data);
+                newestMessageId = data.id;
+                if (minMessageNumber === null || data.message_number < minMessageNumber) {
+                  minMessageNumber = data.message_number;
+                }
+                if (maxMessageNumber === null || data.message_number > maxMessageNumber) {
+                  maxMessageNumber = data.message_number;
+                }
+              }
+            }
             break;
+          }
         }
         
         // Scroll to the latest message
@@ -115,30 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add a message to the UI
   function addMessageToUI(message) {
-    const messageElement = document.createElement('div');
-    const timestamp = new Date(message.timestamp).toLocaleTimeString();
-    
-    if (message.type === 'system') {
-      messageElement.className = 'message system';
-      messageElement.innerHTML = `
-        <div class="content">${message.content}</div>
-        <div class="timestamp">${timestamp}</div>
-      `;
-    } else {
-      const isCurrentUser = message.username === username;
-      messageElement.className = `message ${isCurrentUser ? 'outgoing' : 'incoming'}`;
-      
-      if (!isCurrentUser) {
-        messageElement.innerHTML += `<div class="username">${message.username}</div>`;
-      }
-      
-      messageElement.innerHTML += `
-        <div class="content">${message.content}</div>
-        <div class="timestamp">${timestamp}</div>
-      `;
-    }
-    
-    messagesContainer.appendChild(messageElement);
+    messagesContainer.appendChild(createMessageElement(message));
   }
   
   // Join the chat
@@ -202,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Trigger if near top (100px) or at top (<= 0)
       const scrollThreshold = 100;
-      const scrollPosition = messagesContainer.scrollTop + messagesContainer.clientHeight;
+      //const scrollPosition = messagesContainer.scrollTop + messagesContainer.clientHeight;
       
       // Trigger load when within 100px of the top and content is scrollable
       if ((messagesContainer.scrollTop < scrollThreshold) &&
