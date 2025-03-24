@@ -117,7 +117,7 @@ async function initWebSocket(server, db) {
           // Broadcast message to all clients in the same path
           broadcastMessage({
             type: 'message',
-            id: insertedMessage.message_number,
+            message_number: insertedMessage.message_number,
             username,
             content: message.content,
             timestamp: new Date().toISOString()
