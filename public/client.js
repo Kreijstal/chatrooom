@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
           case 'message':
           case 'system': {
-            if (!newestMessageId || data.id > newestMessageId) {
+            if (!newestMessageId) {
               if (minMessageNumber && maxMessageNumber &&
                   data.message_number >= minMessageNumber &&
                   data.message_number <= maxMessageNumber) {
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
               } else {
                 addMessageToUI(data);
-                newestMessageId = data.id;
+                newestMessageId = data.message_number;
                 if (minMessageNumber === null || data.message_number < minMessageNumber) {
                   minMessageNumber = data.message_number;
                 }
