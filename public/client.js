@@ -10,8 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   let socket;
   let username = '';
-  let oldestMessageId = null;
-  let newestMessageId = null;
   let minMessageNumber = null;
   let maxMessageNumber = null;
   let isLoadingHistory = false;
@@ -30,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isReconnect) {
         // Clear existing messages and state
         messagesContainer.innerHTML = '';
-        oldestMessageId = null;
         newestMessageId = null;
         minMessageNumber = null;
         maxMessageNumber = null;
@@ -82,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
                   maxMessageNumber = msg.message_number;
                 }
               });
-              oldestMessageId = data.firstId;
             } else { // Paginated load OR we lost connection.. and server sends its first history 
             //What happens if there has been more than 50 messages from disconnection to reconnection????
               scrollPositionBeforeLoad = messagesContainer.scrollHeight - messagesContainer.scrollTop;
@@ -107,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
               
               // Restore scroll position
               messagesContainer.scrollTop = messagesContainer.scrollHeight - scrollPositionBeforeLoad;
-              oldestMessageId = data.firstId;
+              minMessageNumber = data.firstId;
               hasMoreHistory = data.messages.length > 0;
             }
             isLoadingHistory = false;
@@ -115,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
           case 'message':
           case 'system': {
-            if (!newestMessageId) {
+
               if (minMessageNumber && maxMessageNumber &&
                   data.message_number >= minMessageNumber &&
                   data.message_number <= maxMessageNumber) {
@@ -126,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
               } else {
                 addMessageToUI(data);
-                newestMessageId = data.message_number;
                 if (minMessageNumber === null || data.message_number < minMessageNumber) {
                   minMessageNumber = data.message_number;
                 }
@@ -134,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
                   maxMessageNumber = data.message_number;
                 }
               }
-            }
             break;
           }
         }
@@ -256,13 +250,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load older messages
   async function loadOlderMessages() {
-    if (!oldestMessageId || isLoadingHistory || !hasMoreHistory) return;
+    if (!minMessageNumber || isLoadingHistory || !hasMoreHistory) return;
     
     isLoadingHistory = true;
     try {
       socket.send(JSON.stringify({
         type: 'history',
-        id: oldestMessageId,
+        id: minMessageNumber,
         count: 50
       }));
     } catch (error) {
