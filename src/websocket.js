@@ -16,12 +16,15 @@ async function initWebSocket(server, db) {
     console.log('Fetched', messages.length, 'messages');
     ws.send(JSON.stringify({
       type: 'history',
-      messages: messages.reverse()
+      messages: messages.reverse(),
+      firstId: messages.length > 0 ? messages[0].id : null
     }));
 
     ws.on('message', async (data) => {
       try {
+        const ip = ws._socket.remoteAddress;
         const message = JSON.parse(data);
+        console.log(`Message from ${ip}:`, message);
         
         switch (message.type) {
           case 'join':
@@ -53,6 +56,24 @@ async function initWebSocket(server, db) {
               content: message.content,
               timestamp: new Date().toISOString()
             });
+            break;
+            
+          case 'history':
+            if (!message.id || !message.count) return;
+            
+            // Fetch messages older than the given ID
+            const history = await db.all(
+              'SELECT * FROM messages WHERE id < ? ORDER BY id DESC LIMIT ?',
+              message.id,
+              message.count
+            );
+            
+            // Send history back to requesting client
+            ws.send(JSON.stringify({
+              type: 'history',
+              messages: history.reverse(),
+              firstId: history.length > 0 ? history[0].id : null
+            }));
             break;
         }
       } catch (error) {

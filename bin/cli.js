@@ -32,15 +32,3 @@ startServer(currentDir, PORT)
     process.exit(1);
   });
 
-console.log(chalk.green(`
-╔═══════════════════════════════════════════╗
-║                                           ║
-║   ${chalk.bold('Chatroom')} is running!                    ║
-║                                           ║
-║   ${chalk.cyan('→')} Local:   ${chalk.cyan(`http://localhost:${PORT}`)}     ║
-║                                           ║
-║   SQLite database created in current dir  ║
-║   Press Ctrl+C to stop                    ║
-║                                           ║
-╚═══════════════════════════════════════════╝
-`));

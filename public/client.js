@@ -10,7 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
   
   let socket;
   let username = '';
-  
+  let oldestMessageId = null;
+  let isLoadingHistory = false;
+  let hasMoreHistory = true;
+  let scrollPositionBeforeLoad = 0;
+
   // Connect to WebSocket server
   function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -40,12 +44,31 @@ document.addEventListener('DOMContentLoaded', () => {
         switch(data.type) {
           case 'history':
             // Clear existing messages first
-            messagesContainer.innerHTML = '';
-            
-            // Add message history
-            data.messages.forEach(msg => {
-              addMessageToUI(msg);
-            });
+            if (messagesContainer.children.length === 0) { // Initial load
+              messagesContainer.innerHTML = '';
+              data.messages.forEach(msg => addMessageToUI(msg));
+              oldestMessageId = data.firstId;
+            } else { // Paginated load
+              scrollPositionBeforeLoad = messagesContainer.scrollHeight - messagesContainer.scrollTop;
+              // Create temporary container for new messages
+              const tempContainer = document.createElement('div');
+              data.messages.forEach(msg => {
+                const element = createMessageElement(msg);
+                tempContainer.appendChild(element);
+              });
+              
+              // Insert new messages at the top while maintaining scroll position
+              const firstChild = messagesContainer.firstChild;
+              while (tempContainer.firstChild) {
+                messagesContainer.insertBefore(tempContainer.firstChild, firstChild);
+              }
+              
+              // Restore scroll position
+              messagesContainer.scrollTop = messagesContainer.scrollHeight - scrollPositionBeforeLoad;
+              oldestMessageId = data.firstId;
+              hasMoreHistory = data.messages.length > 0;
+            }
+            isLoadingHistory = false;
             break;
             
           case 'message':
@@ -62,6 +85,34 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
   
+  // Create a message element
+  function createMessageElement(message) {
+    const messageElement = document.createElement('div');
+    const timestamp = new Date(message.timestamp).toLocaleTimeString();
+    
+    if (message.type === 'system') {
+      messageElement.className = 'message system';
+      messageElement.innerHTML = `
+        <div class="content">${message.content}</div>
+        <div class="timestamp">${timestamp}</div>
+      `;
+    } else {
+      const isCurrentUser = message.username === username;
+      messageElement.className = `message ${isCurrentUser ? 'outgoing' : 'incoming'}`;
+      
+      if (!isCurrentUser) {
+        messageElement.innerHTML += `<div class="username">${message.username}</div>`;
+      }
+      
+      messageElement.innerHTML += `
+        <div class="content">${message.content}</div>
+        <div class="timestamp">${timestamp}</div>
+      `;
+    }
+    
+    return messageElement;
+  }
+
   // Add a message to the UI
   function addMessageToUI(message) {
     const messageElement = document.createElement('div');
@@ -142,6 +193,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
+  // Handle scroll for history loading
+  let scrollTimeout;
+  messagesContainer.addEventListener('scroll', () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      if (isLoadingHistory || !hasMoreHistory) return;
+      
+      // Trigger if near top (100px) or at top (<= 0)
+      const scrollThreshold = 100;
+      const scrollPosition = messagesContainer.scrollTop + messagesContainer.clientHeight;
+      
+      // Trigger load when within 100px of the top and content is scrollable
+      if ((messagesContainer.scrollTop < scrollThreshold) &&
+          (messagesContainer.scrollHeight > messagesContainer.clientHeight)) {
+        loadOlderMessages();
+      }
+    }, 150);
+  });
+
   // Initialize connection
   connectWebSocket();
+
+  // Load older messages
+  async function loadOlderMessages() {
+    if (!oldestMessageId || isLoadingHistory || !hasMoreHistory) return;
+    
+    isLoadingHistory = true;
+    try {
+      socket.send(JSON.stringify({
+        type: 'history',
+        id: oldestMessageId,
+        count: 50
+      }));
+    } catch (error) {
+      console.error('Error loading history:', error);
+      isLoadingHistory = false;
+    }
+  }
 });
