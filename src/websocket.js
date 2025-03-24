@@ -16,7 +16,8 @@ async function initWebSocket(server, db) {
     console.log('Fetched', messages.length, 'messages');
     ws.send(JSON.stringify({
       type: 'history',
-      messages: messages.reverse()
+      messages: messages.reverse(),
+      firstId: messages.length > 0 ? messages[0].id : null
     }));
 
     ws.on('message', async (data) => {
