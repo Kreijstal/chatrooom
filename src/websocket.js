@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 
-async function insertMessage(db, chatLocationId, username, content) {
+async function insertMessage(db, chatLocationId, username, content, ipAddress, forwardedFor, userAgent) {
   await db.run("BEGIN TRANSACTION");
 
   try {
@@ -32,9 +32,9 @@ async function insertMessage(db, chatLocationId, username, content) {
 
     // Insert the message with the incremented number
     const result = await db.run(`
-      INSERT INTO messages (chat_location_id, message_number, username, content)
-      VALUES (?, ?, ?, ?)
-    `, [chatLocationId, last_number, username, content]);
+      INSERT INTO messages (chat_location_id, message_number, username, content, ip_address, forwarded_for, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [chatLocationId, last_number, username, content, ipAddress, forwardedFor, userAgent]);
 
     await db.run("COMMIT");
     //console.log("What is the result here",result)
@@ -108,7 +108,9 @@ async function initWebSocket(server, db) {
           if (!username || !message.content.trim()) return;
 
           // Store message in database with chat_location_id and auto-incremented message_number
-          var messageId=await insertMessage(db, chatLocationId, username, message.content);
+          const forwardedFor = req.headers['x-forwarded-for'] || '';
+          const userAgent = req.headers['user-agent'] || '';
+          var messageId=await insertMessage(db, chatLocationId, username, message.content, ip, forwardedFor, userAgent);
 
           const insertedMessage = await db.get(`
             SELECT * FROM messages WHERE id = ?

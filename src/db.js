@@ -32,6 +32,9 @@ async function initDatabase(dbPath) {
       message_number INTEGER NOT NULL, -- New column for grouped autoincrement
       username TEXT NOT NULL,
       content TEXT NOT NULL,
+      ip_address TEXT NOT NULL,
+      forwarded_for TEXT,
+      user_agent TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(chat_location_id) REFERENCES chat_locations(id)
   );
